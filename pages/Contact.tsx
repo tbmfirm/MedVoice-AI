@@ -95,9 +95,9 @@ const Contact: React.FC = () => {
 
             <div className="space-y-10">
                 {[
-                    { label: 'Clinical Hub', value: '123 Innovation Way, San Francisco, CA', icon: MapPin },
-                    { label: 'Partnership Inquiry', value: 'partners@medvoice.ai', icon: Mail },
-                    { label: 'Emergency Support', value: '+1 (800) MED-VOICE', icon: Phone }
+                    { label: 'Address', value: '179 Trail lane, Markham ON', icon: MapPin },
+                    { label: 'Email', value: 'masterawahab@gmail.com', icon: Mail },
+                    { label: 'Phone', value: '+1 437 2211910', icon: Phone }
                 ].map((item, i) => (
                     <div key={i} className="flex gap-6 items-center group">
                         <div className="w-14 h-14 glass-card rounded-2xl flex items-center justify-center text-slate-500 group-hover:text-electric group-hover:border-electric transition-all shadow-xl">

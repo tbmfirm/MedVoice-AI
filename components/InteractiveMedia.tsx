@@ -1,18 +1,42 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Play, Pause, Headset, Check } from 'lucide-react';
 import Link from 'next/link';
 
-const AudioDemoCard: React.FC<{ title: string; desc: string; duration: string }> = ({ title, desc, duration }) => {
+const AudioDemoCard: React.FC<{ title: string; desc: string; duration: string; audioSrc: string }> = ({ title, desc, duration, audioSrc }) => {
   const [isActive, setIsActive] = useState(false);
+  const [audio, setAudio] = useState<HTMLAudioElement | null>(null);
+
+  useEffect(() => {
+    const audioElement = new Audio(audioSrc);
+    audioElement.addEventListener('ended', () => setIsActive(false));
+    setAudio(audioElement);
+
+    return () => {
+      audioElement.pause();
+      audioElement.removeEventListener('ended', () => setIsActive(false));
+    };
+  }, [audioSrc]);
+
+  const handleToggle = () => {
+    if (!audio) return;
+    
+    if (isActive) {
+      audio.pause();
+      audio.currentTime = 0;
+    } else {
+      audio.play();
+    }
+    setIsActive(!isActive);
+  };
 
   return (
     <div className={`p-8 rounded-[32px] border transition-all duration-500 cursor-pointer ${
         isActive ? 'glass-card border-electric shadow-2xl' : 'bg-white/5 border-white/5 hover:border-white/10'
     }`}
-    onClick={() => setIsActive(!isActive)}>
+    onClick={handleToggle}>
         <div className="flex justify-between items-start mb-8">
             <div className={`w-12 h-12 rounded-full flex items-center justify-center transition-all duration-500 ${
                 isActive ? 'bg-electric scale-110' : 'bg-white/10'
@@ -77,8 +101,24 @@ const InteractiveMedia: React.FC = () => {
             </div>
 
             <div className="lg:w-1/2 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
-                <AudioDemoCard title="Clinic Reception" desc="Handling peak call volumes with ease." duration="0:45" />
-                <AudioDemoCard title="Patient Triage" desc="Screening symptoms and routing fast." duration="1:20" />
+                <AudioDemoCard 
+                  title="Clinic Reception" 
+                  desc="Handling peak call volumes with ease." 
+                  duration="0:45" 
+                  audioSrc="/audio/clinic-reception.mp3"
+                />
+                <AudioDemoCard 
+                  title="Patient Triage" 
+                  desc="Screening symptoms and routing fast." 
+                  duration="1:20" 
+                  audioSrc="/audio/patient-triage.mp3"
+                />
+                <AudioDemoCard 
+                  title="Emergency Call" 
+                  desc="Rapid response and critical care routing." 
+                  duration="0:38" 
+                  audioSrc="/audio/emergency-call.mp3"
+                />
                 <div className="md:col-span-2 p-1 glass rounded-[32px] overflow-hidden group relative">
                     <div className="relative aspect-video rounded-[28px] overflow-hidden">
                         <img 

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { PhoneCall, Linkedin, Twitter, ArrowUpRight } from 'lucide-react';
+import { PhoneCall, Linkedin, Twitter, Instagram, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
 
 const Footer: React.FC = () => {
@@ -44,18 +44,41 @@ const Footer: React.FC = () => {
           </div>
 
           <div className="md:col-span-3 space-y-8">
-            <h5 className="text-white font-bold tracking-tight">Newsletter</h5>
-            <div className="relative">
-                <input 
-                    type="email" 
-                    placeholder="Enter email" 
-                    className="w-full bg-white/5 border border-white/10 rounded-xl px-6 py-4 text-white focus:outline-none focus:border-electric transition-colors"
-                />
-                <button className="absolute right-2 top-2 bottom-2 bg-white text-navy px-4 rounded-lg font-bold text-xs">Join</button>
+            <h5 className="text-white font-bold tracking-tight">Contact</h5>
+            <div className="space-y-4 text-slate-500 font-medium">
+              <p className="text-white">179 Trail lane, Markham ON</p>
+              <p><a href="tel:+14372211910" className="hover:text-electric transition-colors">+1 437 2211910</a></p>
+              <p><a href="mailto:masterawahab@gmail.com" className="hover:text-electric transition-colors">masterawahab@gmail.com</a></p>
+              <p><a href="https://techbymaster.com" target="_blank" rel="noopener noreferrer" className="hover:text-electric transition-colors">techbymaster.com</a></p>
             </div>
             <div className="flex gap-6 text-slate-500">
-                <a href="#" className="hover:text-white transition-colors"><Twitter size={20}/></a>
-                <a href="#" className="hover:text-white transition-colors"><Linkedin size={20}/></a>
+                <a 
+                  href="https://x.com/AAbdurrash" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-electric transition-colors"
+                  aria-label="Twitter"
+                >
+                  <Twitter size={20}/>
+                </a>
+                <a 
+                  href="https://www.linkedin.com/in/abdul-wahab-abdurrasheed-6231341b9/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-electric transition-colors"
+                  aria-label="LinkedIn"
+                >
+                  <Linkedin size={20}/>
+                </a>
+                <a 
+                  href="https://www.instagram.com/master_tecs/" 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="hover:text-electric transition-colors"
+                  aria-label="Instagram"
+                >
+                  <Instagram size={20}/>
+                </a>
             </div>
           </div>
         </div>

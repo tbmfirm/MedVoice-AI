@@ -63,7 +63,7 @@ This email was sent from the MedVoice AI contact form.
     // Note: Update 'to' email with your actual receiving email address
     const { data, error } = await resend.emails.send({
       from: 'MedVoice AI <onboarding@resend.dev>', // Update this with your verified domain
-      to: ['masterawahab@gmail.com'], // Update with your actual email
+      to: ['masterawahab@gmail.com'],
       subject: emailSubject,
       html: emailContent,
       text: textContent,
