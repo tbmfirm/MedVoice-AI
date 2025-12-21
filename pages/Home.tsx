@@ -1,0 +1,25 @@
+
+import React from 'react';
+import Hero from '../components/Hero';
+import TrustSection from '../components/TrustSection';
+import Features from '../components/Features';
+import InteractiveMedia from '../components/InteractiveMedia';
+import Testimonials from '../components/Testimonials';
+import ContactForm from '../components/ContactForm';
+
+const Home: React.FC = () => {
+  return (
+    <>
+      <Hero />
+      <TrustSection />
+      <Features />
+      <InteractiveMedia />
+      <Testimonials />
+      <div id="contact-section">
+        <ContactForm />
+      </div>
+    </>
+  );
+};
+
+export default Home;
