@@ -33,6 +33,14 @@ export default function ClientLayout({
 }) {
   const pathname = usePathname();
 
+  // Don't show Navbar/Footer for admin routes or login
+  const isAdminRoute = pathname?.startsWith('/admin') || pathname?.startsWith('/login') || pathname?.startsWith('/logout');
+
+  if (isAdminRoute) {
+    // For admin routes, just render children without Navbar/Footer
+    return <>{children}</>;
+  }
+
   return (
     <div className="min-h-screen flex flex-col selection:bg-electric selection:text-white">
       <ScrollToTop />

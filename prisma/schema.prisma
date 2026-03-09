@@ -1,0 +1,715 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Organizations/Practices
+model Organization {
+  id          String   @id @default(cuid())
+  name        String
+  specialty   String?
+  practiceName String?
+  phone       String?
+  email       String?
+  callVolume  String?
+  
+  // Booking System
+  slug        String?  // URL-friendly identifier for public booking pages (will be made unique after data fix)
+  
+  // Subscription & Billing
+  subscriptionTier String @default("essentials") // essentials, growth, enterprise
+  status          String @default("active") // active, suspended, cancelled
+  
+  // HIPAA Compliance
+  hipaaCompliant  Boolean @default(false)
+  baaSigned       Boolean @default(false)
+  baaSignedAt     DateTime?
+  
+  // Timestamps
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Twilio Forwarding
+  twilioPhoneNumber String? // The Twilio number we provision for forwarding
+  twilioNumberSid   String? // Twilio phone number SID
+  staffPhoneNumber  String? // Number to dial during business hours
+  
+  // Relations
+  locations       Location[]
+  users           User[]
+  patients        Patient[]
+  appointments    Appointment[]
+  calls           Call[]
+  emrIntegrations EMRIntegration[]
+  settings        OrganizationSettings?
+  smsLogs         SMSLog[]
+  phoneNumbers    PhoneNumber[]
+  clinicSchedule  ClinicSchedule?
+  callLogs        CallLog[]
+  appointmentTypes AppointmentType[]
+  doctorSchedules  DoctorSchedule[]
+  bookingPageSettings BookingPageSettings?
+  
+  @@index([email])
+  @@index([status])
+  @@index([twilioPhoneNumber])
+  @@index([slug])
+  @@map("organizations")
+}
+
+// Organization Settings
+model OrganizationSettings {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // AI Configuration
+  aiVoiceEnabled     Boolean @default(true)
+  aiVoicePersonality String? // empathetic, professional, friendly
+  aiVoiceCloneId     String?
+  
+  // Notification Settings
+  smsNotifications   Boolean @default(true)
+  emailNotifications Boolean @default(true)
+  
+  // Business Hours
+  businessHours      Json? // Store as JSON: { monday: { open: "09:00", close: "17:00" }, ... }
+  timezone           String @default("America/New_York")
+  
+  // Call Routing
+  afterHoursRouting  String @default("voicemail") // voicemail, ai_agent, forward
+  
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  
+  @@map("organization_settings")
+}
+
+// Users (Admins, Staff, Clinicians)
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  email          String   @unique
+  passwordHash   String
+  firstName      String
+  lastName       String
+  phone          String?
+  
+  role           String   @default("staff") // admin, staff, clinician
+  permissions    Json?    // Store role-specific permissions as JSON
+  
+  // Authentication
+  emailVerified  Boolean  @default(false)
+  emailVerifiedAt DateTime?
+  
+  // Security
+  lastLoginAt    DateTime?
+  failedLoginAttempts Int @default(0)
+  lockedUntil    DateTime?
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  userLocations  UserLocation[]
+  emrIntegrations EMRIntegration[]
+  appointments   Appointment[]
+  calls          Call[]
+  doctorSchedules DoctorSchedule[]
+  
+  @@index([organizationId])
+  @@index([email])
+  @@map("users")
+}
+
+// User-Location Assignment (Many-to-Many)
+model UserLocation {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  locationId String
+  location   Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  
+  createdAt  DateTime @default(now())
+  
+  @@unique([userId, locationId])
+  @@index([userId])
+  @@index([locationId])
+  @@map("user_locations")
+}
+
+// Locations
+model Location {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Location Details
+  name           String   // e.g., "Downtown Office", "North Branch"
+  address        String
+  city           String
+  state          String
+  zipCode        String
+  phone          String?
+  email          String?
+  
+  // Location-specific overrides (optional)
+  businessHours  Json?    // Override org business hours if different
+  timezone       String?  // Override org timezone if different
+  
+  // Status
+  isActive       Boolean  @default(true)
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  appointments   Appointment[]
+  calls          Call[]
+  userLocations  UserLocation[]
+  patients       Patient[] // Primary location for patients
+  phoneNumbers   PhoneNumber[]
+  doctorSchedules DoctorSchedule[]
+  
+  @@index([organizationId])
+  @@index([isActive])
+  @@map("locations")
+}
+
+// Patients
+model Patient {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Demographics
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime?
+  gender         String? // M, F, Other, Prefer not to say
+  phone          String
+  email          String?
+  
+  // Address
+  address        String?
+  city           String?
+  state          String?
+  zipCode        String?
+  
+  // Medical
+  emrPatientId   String? // External EMR system patient ID
+  medicalRecordNumber String?
+  
+  // Primary Location
+  primaryLocationId String?
+  primaryLocation   Location? @relation(fields: [primaryLocationId], references: [id], onDelete: SetNull)
+  
+  // HIPAA Compliance
+  consentGiven   Boolean  @default(false)
+  consentGivenAt DateTime?
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  appointments   Appointment[]
+  calls         Call[]
+  smsLogs       SMSLog[]
+  callLogs      CallLog[]
+  
+  @@index([organizationId])
+  @@index([phone])
+  @@index([email])
+  @@index([emrPatientId])
+  @@index([primaryLocationId])
+  @@map("patients")
+}
+
+// Appointments
+model Appointment {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  patientId      String
+  patient        Patient @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  
+  locationId     String
+  location       Location @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  
+  // Scheduling
+  scheduledAt    DateTime
+  duration       Int      @default(30) // minutes
+  status         String   @default("scheduled") // scheduled, confirmed, cancelled, completed, no_show
+  
+  // Details
+  reason         String?
+  notes          String?
+  
+  // Provider
+  providerName   String?
+  providerId     String? // Link to clinician/user if needed
+  
+  // Booking System
+  bookingSource  String? // "online", "phone", "walk_in", "ai_agent"
+  confirmationCode String? // Unique code for patient confirmation (will be made unique after data fix)
+  reminderSent   Boolean  @default(false) // Track if reminder SMS was sent
+  reminderSentAt DateTime? // When reminder was sent
+  
+  // Appointment Type
+  appointmentTypeId String?
+  appointmentType   AppointmentType? @relation(fields: [appointmentTypeId], references: [id], onDelete: SetNull)
+  
+  // EMR Integration
+  emrAppointmentId String? // External EMR system appointment ID
+  syncedWithEMR  Boolean  @default(false)
+  lastEMRSyncAt  DateTime?
+  
+  // Created by
+  createdById    String?
+  createdBy      User?    @relation(fields: [createdById], references: [id])
+  
+  // Relations
+  smsLogs        SMSLog[]
+  
+  @@index([appointmentTypeId])
+  @@index([confirmationCode])
+  @@index([providerId])
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([organizationId])
+  @@index([patientId])
+  @@index([locationId])
+  @@index([scheduledAt])
+  @@index([status])
+  @@index([emrAppointmentId])
+  @@map("appointments")
+}
+
+// Call Records
+model Call {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  patientId      String?
+  patient        Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  
+  locationId     String?
+  location       Location? @relation(fields: [locationId], references: [id], onDelete: SetNull)
+  
+  // Phone Number
+  phoneNumberId  String?
+  receivedPhoneNumber PhoneNumber? @relation("ReceivedCalls", fields: [phoneNumberId], references: [id], onDelete: SetNull)
+  
+  // Call Details
+  callSid        String?  // Twilio Call SID
+  phoneNumberRaw String   // Raw phone number (for backward compatibility)
+  direction      String   // inbound, outbound
+  status         String   // initiated, ringing, in_progress, completed, failed, busy, no_answer
+  
+  // Duration
+  startedAt      DateTime?
+  answeredAt     DateTime?
+  endedAt        DateTime?
+  duration       Int?     // seconds
+  
+  // AI Agent
+  aiAgentUsed    Boolean  @default(false)
+  aiAgentId      String?
+  aiTranscript   String?  // Full conversation transcript
+  aiIntent       String?  // detected intent: schedule, cancel, question, etc.
+  aiConfidence   Float?   // 0-1 confidence score
+  
+  // Outcome
+  outcome        String?  // scheduled, cancelled, transferred, voicemail, etc.
+  notes          String?
+  
+  // Recording & Compliance
+  recordingUrl   String?
+  recordingDuration Int?
+  transcriptionUrl String?
+  
+  // Created by
+  handledById    String?
+  handledBy      User?    @relation(fields: [handledById], references: [id])
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([organizationId])
+  @@index([patientId])
+  @@index([locationId])
+  @@index([callSid])
+  @@index([phoneNumberRaw])
+  @@index([phoneNumberId])
+  @@index([startedAt])
+  @@index([status])
+  @@map("calls")
+}
+
+// EMR Integrations
+model EMRIntegration {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Integration Type
+  emrSystem      String   // epic, cerner, athena, allscripts, custom
+  integrationType String  // api, hl7, fhir, custom
+  
+  // Connection Details (encrypted)
+  apiEndpoint    String?
+  apiKey         String?  // Should be encrypted in production
+  clientId       String?
+  clientSecret   String?  // Should be encrypted in production
+  
+  // HL7/FHIR
+  hl7Endpoint    String?
+  fhirBaseUrl    String?
+  
+  // Status
+  status         String   @default("inactive") // active, inactive, error
+  lastSyncAt     DateTime?
+  lastSyncStatus String?  // success, error, partial
+  
+  // Configuration
+  syncAppointments Boolean @default(true)
+  syncPatients     Boolean @default(true)
+  syncDirection    String  @default("bidirectional") // inbound, outbound, bidirectional
+  
+  // Doctor Association
+  doctorId       String? // Links to User with role 'clinician'
+  doctor         User?   @relation(fields: [doctorId], references: [id], onDelete: SetNull)
+  
+  // Error Tracking
+  lastError      String?
+  lastErrorAt    DateTime?
+  errorCount     Int      @default(0)
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([organizationId])
+  @@index([doctorId])
+  @@index([emrSystem])
+  @@index([status])
+  @@map("emr_integrations")
+}
+
+// Audit Log (for HIPAA compliance)
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String?
+  
+  // Action Details
+  action         String   // create, read, update, delete, access, export
+  resourceType   String   // patient, appointment, call, user, etc.
+  resourceId     String?
+  
+  // User Context
+  userId         String?
+  userEmail      String?
+  ipAddress      String?
+  userAgent      String?
+  
+  // Details
+  details        Json?    // Additional context as JSON
+  changes        Json?    // Before/after changes for updates
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  
+  @@index([organizationId])
+  @@index([action])
+  @@index([resourceType])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// SMS Logs
+model SMSLog {
+  id            String   @id @default(cuid())
+  appointmentId String?
+  appointment   Appointment? @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+  
+  patientId     String?
+  patient       Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+  
+  // Phone Number
+  fromPhoneNumberId String?
+  fromPhoneNumber   PhoneNumber? @relation("SentSMS", fields: [fromPhoneNumberId], references: [id], onDelete: SetNull)
+  
+  phoneNumber   String // Recipient phone number (for incoming) or sender (for outgoing)
+  message       String
+  messageType   String   @default("confirmation") // confirmation, reminder, cancellation, incoming
+  status        String   @default("sent") // sent, delivered, failed, undelivered, processed, blocked
+  messageSid   String?  // Twilio message SID
+  errorCode     String?
+  errorMessage  String?
+  
+  sentAt        DateTime @default(now())
+  deliveredAt   DateTime?
+  failedAt      DateTime?
+  
+  // Timestamps
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@index([appointmentId])
+  @@index([patientId])
+  @@index([organizationId])
+  @@index([phoneNumber])
+  @@index([status])
+  @@index([messageSid])
+  @@index([sentAt])
+  @@index([fromPhoneNumberId])
+  @@map("sms_logs")
+}
+
+// Phone Numbers
+model PhoneNumber {
+  id             String   @id @default(cuid())
+  phoneNumber    String   @unique // E.164 format
+  twilioSid      String?  // Twilio phone number SID
+  twilioAccountSid String? // Which Twilio account owns this number
+  
+  // Ownership (can belong to org or location)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  locationId     String?
+  location       Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  
+  // Type and purpose
+  numberType     String   @default("main") // main, backup, location_specific
+  purpose        String   @default("voice_sms") // voice, sms, voice_sms, fax
+  isPrimary      Boolean  @default(false) // Primary number for SMS sending
+  
+  // Porting Status (for BYON - Bring Your Own Number)
+  portStatus     String   @default("not_ported") // not_ported, port_requested, port_pending, ported, port_failed, forwarding
+  portRequestId  String?  // Twilio port request SID
+  portRequestedAt DateTime? // When port was requested
+  portCompletedAt DateTime? // When port completed
+  portFailureReason String? // Reason if port failed
+  
+  // Number Source
+  numberSource   String   @default("twilio") // twilio, ported, forwarded, existing_carrier
+  
+  // Status
+  isActive       Boolean  @default(true)
+  verified       Boolean  @default(false) // Verified with Twilio
+  
+  // Metadata
+  friendlyName   String?  // Display name
+  notes          String?
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  // Relations
+  receivedCalls Call[]   @relation("ReceivedCalls") // Calls received on this number
+  sentSmsLogs    SMSLog[] @relation("SentSMS") // SMS sent from this number
+  
+  @@index([organizationId])
+  @@index([locationId])
+  @@index([phoneNumber])
+  @@index([isActive])
+  @@index([isPrimary])
+  @@index([portStatus])
+  @@map("phone_numbers")
+}
+
+// Clinic Schedule - Structured business hours per organization
+model ClinicSchedule {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Timezone
+  timezone       String   @default("America/New_York")
+  
+  // Per-day business hours (nullable for closed days, format "HH:mm")
+  mondayOpen     String?
+  mondayClose    String?
+  tuesdayOpen    String?
+  tuesdayClose   String?
+  wednesdayOpen  String?
+  wednesdayClose String?
+  thursdayOpen   String?
+  thursdayClose  String?
+  fridayOpen     String?
+  fridayClose    String?
+  saturdayOpen   String?
+  saturdayClose  String?
+  sundayOpen     String?
+  sundayClose    String?
+  
+  // Call routing configuration
+  aiRingTimeout  Int      @default(20) // Seconds to ring before AI takes over
+  callRoutingMode String  @default("business_hours_staff") // immediate_ai, business_hours_staff, business_hours_ai, always_staff
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@map("clinic_schedules")
+}
+
+// Call Log - Simplified call logging for forwarding system
+model CallLog {
+  id             String   @id @default(cuid())
+  callSid        String   @unique // Twilio Call SID
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Patient relation
+  patientId      String?
+  patient        Patient? @relation(fields: [patientId], references: [id], onDelete: SetNull)
+  
+  // Call details
+  from           String   // Caller number
+  to             String   // Twilio number that received call
+  status         String   // initiated, ringing, in-progress, completed, failed, no-answer
+  answeredBy     String?  // "staff", "ai", or user ID
+  duration       Int?     // seconds
+  
+  // Timestamps
+  startedAt      DateTime?
+  answeredAt     DateTime?
+  endedAt        DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([organizationId])
+  @@index([callSid])
+  @@index([status])
+  @@index([startedAt])
+  @@index([patientId])
+  @@map("call_logs")
+}
+
+// Appointment Types
+model AppointmentType {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  name           String
+  duration       Int      // minutes
+  description    String?
+  color          String?  // Hex color for UI (e.g., "#3B82F6")
+  isActive       Boolean  @default(true)
+  
+  appointments   Appointment[]
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([organizationId])
+  @@index([isActive])
+  @@map("appointment_types")
+}
+
+// Doctor Schedules
+model DoctorSchedule {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  doctorId       String   // User ID with role "clinician"
+  doctor         User     @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  
+  // Day of week: MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY
+  dayOfWeek      String
+  
+  // Location: specific location ID, or "ALL" for all locations, or null for closed
+  locationId     String?  // If null and start="CLOSED", doctor is closed
+  location       Location? @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  locationName   String?  // Store "ALL" or location name for special cases
+  
+  // Time slots (format: "10:00AM", "1:30PM", or "CLOSED")
+  startTime      String   // "10:00AM" or "CLOSED"
+  endTime        String   // "6:00PM" or "CLOSED"
+  
+  // Special flags
+  isAlternating  Boolean  @default(false) // ALT - alternating weeks
+  note           String?  // Additional notes
+  
+  // Timestamps
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@index([organizationId])
+  @@index([doctorId])
+  @@index([dayOfWeek])
+  @@index([locationId])
+  @@unique([doctorId, dayOfWeek, locationId, startTime]) // Prevent duplicates
+  @@map("doctor_schedules")
+}
+
+// Booking Page Settings
+model BookingPageSettings {
+  id             String   @id @default(cuid())
+  organizationId String   @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  
+  // Branding
+  logoUrl        String?  // Clinic logo URL
+  primaryColor   String?  // Primary brand color (hex, e.g., "#2563eb")
+  secondaryColor String?  // Secondary brand color
+  backgroundColor String? // Background color
+  
+  // Landing Page Content
+  welcomeTitle   String?  // Custom welcome title (default: "Book an Appointment")
+  welcomeMessage String? // Custom welcome message/description
+  heroImageUrl  String?  // Hero/banner image URL
+  
+  // Contact Information (for display on landing page)
+  displayPhone   Boolean  @default(true)
+  displayEmail   Boolean  @default(true)
+  displayAddress Boolean  @default(true)
+  
+  // Features/Information Section
+  showServices   Boolean  @default(true) // Show services/specialties
+  showDoctors    Boolean  @default(true) // Show doctor list
+  showLocations  Boolean  @default(true) // Show locations
+  customContent  String?  // HTML or markdown for custom content section
+  
+  // Footer/Additional Info
+  footerText     String?  // Custom footer text
+  termsUrl       String?  // Link to terms of service
+  privacyUrl     String?  // Link to privacy policy
+  
+  // SEO
+  metaTitle      String?  // Custom page title
+  metaDescription String? // Custom meta description
+  
+  // Status
+  isActive       Boolean  @default(true)
+  
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  
+  @@map("booking_page_settings")
+}
